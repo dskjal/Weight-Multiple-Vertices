@@ -21,7 +21,7 @@ import bmesh
 bl_info = {
     "name" : "Weight Multiple Vertices",
     "author" : "dskjal",
-    "version" : (1, 0),
+    "version" : (1, 1),
     "blender" : (2, 83, 3),
     "location" : "View3D > Toolshelf > Item > Weight Multiple Vertices",
     "description" : "This add-on sets the weight to multiple vertices.",
@@ -112,7 +112,7 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
 
 def register():
     for i in range(num_weight_array):
-        exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0)" % i)
+        exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0, step=5)" % i)
 
     bpy.utils.register_class(DSKJAL_OT_SetWeight)
     bpy.utils.register_class(DSKJAL_PT_WeightMultipleVertices_UI)

@@ -21,8 +21,8 @@ import bmesh
 bl_info = {
     "name" : "Weight Multiple Vertices",
     "author" : "dskjal",
-    "version" : (1, 1),
-    "blender" : (2, 83, 3),
+    "version" : (2, 0),
+    "blender" : (2, 83, 5),
     "location" : "View3D > Toolshelf > Item > Weight Multiple Vertices",
     "description" : "This add-on sets the weight to multiple vertices.",
     "warning" : "",
@@ -31,31 +31,32 @@ bl_info = {
     "category" : "Mesh"
 }
 
-num_weight_array = 32
+num_weight_array = 16
+weights = [0.0]*num_weight_array
+to_vg_index = [0]*num_weight_array
 
-class DSKJAL_OT_SetWeight(bpy.types.Operator):
-    bl_idname = 'dskjal.setweight'
+def set_weight_or_clear(o, weight, vg_index, is_clear=False):
+    old_mode = o.mode
+    bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+
+    vertices_indices = [v.index for v in o.data.vertices if v.select]
+    o.vertex_groups[vg_index].add(vertices_indices, weight, 'REPLACE')
+
+    if is_clear:
+        old_vg_idx = o.vertex_groups.active_index
+        o.vertex_groups.active_index = vg_index
+        bpy.ops.object.vertex_group_clean()
+        o.vertex_groups.active_index = old_vg_idx
+
+    bpy.ops.object.mode_set(mode=old_mode)
+
+class DSKJAL_OT_ClearWeight(bpy.types.Operator):
+    bl_idname = 'dskjal.clearweight'
     bl_label = 'Set Weight'
     vg_index : bpy.props.IntProperty(default=0)
-    weight : bpy.props.FloatProperty(default=0.0, min=0.0, max=1.0)
-    is_clear : bpy.props.BoolProperty(default=False)
 
     def execute(self, context):
-        o = bpy.context.active_object
-        old_mode = o.mode
-        bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
-
-        vertices_indices = [v.index for v in o.data.vertices if v.select]
-        o.vertex_groups[self.vg_index].add(vertices_indices, self.weight, 'REPLACE')
-
-        if self.is_clear:
-            old_vg_idx = o.vertex_groups.active_index
-            o.vertex_groups.active_index = self.vg_index
-            bpy.ops.object.vertex_group_clean()
-            o.vertex_groups.active_index = old_vg_idx
-
-        bpy.ops.object.mode_set(mode=old_mode)
-
+        set_weight_or_clear(bpy.context.active_object, 0, self.vg_index, is_clear=True)
         return {'FINISHED'}
 
 class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
@@ -76,6 +77,7 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
 
         num_vertex_group = len(obj.vertex_groups)
         bone_flags = [False] * num_vertex_group
+        mean_weights = [[0.0, 0] for i in range(num_vertex_group)]
 
         if obj.mode == 'EDIT':
             bm = bmesh.from_edit_mesh(mesh)
@@ -83,43 +85,62 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
             for v in [v for v in bm.verts if v.select]:
                 for group, weight in v[deform_layer].items():
                     bone_flags[group] = True
+                    mean_weights[group][0] += weight
+                    mean_weights[group][1] += 1
         else:
             for v in [v for v in mesh.vertices if v.select]:
                 for group in v.groups:
                     bone_flags[group.group] = True
+                    mean_weights[group.group][0] += group.weight
+                    mean_weights[group.group][1] += 1
 
+        global to_vg_index
+        global weights
         j = 0
         for i in [i for i in range(num_vertex_group) if bone_flags[i]]:
             row = col.row()
-            # clear
-            ot = row.operator('dskjal.setweight', text='', icon='CANCEL')
+            # clear operator
+            ot = row.operator('dskjal.clearweight', text='', icon='CANCEL')
             ot.vg_index = i
-            ot.weight = 0
-            ot.is_clear = True
+            to_vg_index[j] = i
 
+            # vertex group label
             row.label(text=obj.vertex_groups[i].name)
 
-            # set
+            # weight
+            mw = mean_weights[i]
+            if mw[1] != 0:
+                weights[j] = mw[0]/mw[1]
             row.prop(bpy.context.scene, 'dskjal_weight_array%s' % j, text='')
-            ot = row.operator('dskjal.setweight', text='Set')
-            ot.weight = eval("bpy.context.scene.dskjal_weight_array%s" % j)
-            ot.vg_index = i
-            ot.is_clear = False
             j += 1
 
             if j >= num_weight_array:
                 break
 
+for i in range(num_weight_array):
+    exec('''
+def weight_array_get%s(self):
+    global weights
+    return weights[%s]
+
+def weight_array_set%s(self, value):
+    set_weight_or_clear(bpy.context.active_object, value, to_vg_index[%s], is_clear=False)
+
+    global weights
+    weights[%s] = value
+    return None
+    ''' % (i, i, i, i, i))
+
 def register():
     for i in range(num_weight_array):
-        exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0, step=5)" % i)
+        exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0, step=5, get=weight_array_get%s, set=weight_array_set%s)" % (i, i, i))
 
-    bpy.utils.register_class(DSKJAL_OT_SetWeight)
+    bpy.utils.register_class(DSKJAL_OT_ClearWeight)
     bpy.utils.register_class(DSKJAL_PT_WeightMultipleVertices_UI)
 
 def unregister():
     bpy.utils.unregister_class(DSKJAL_PT_WeightMultipleVertices_UI)
-    bpy.utils.unregister_class(DSKJAL_OT_SetWeight)
+    bpy.utils.unregister_class(DSKJAL_OT_ClearWeight)
     for i in range(num_weight_array):
         exec("del bpy.types.Scene.dskjal_weight_array%s" % i)
 

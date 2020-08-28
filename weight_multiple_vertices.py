@@ -21,7 +21,7 @@ import bmesh
 bl_info = {
     "name" : "Weight Multiple Vertices",
     "author" : "dskjal",
-    "version" : (2, 0),
+    "version" : (2, 1),
     "blender" : (2, 83, 5),
     "location" : "View3D > Toolshelf > Item > Weight Multiple Vertices",
     "description" : "This add-on sets the weight to multiple vertices.",
@@ -47,6 +47,20 @@ def set_weight_or_clear(o, weight, vg_index, is_clear=False):
         o.vertex_groups.active_index = vg_index
         bpy.ops.object.vertex_group_clean()
         o.vertex_groups.active_index = old_vg_idx
+
+    bpy.ops.object.mode_set(mode=old_mode)
+
+def normalize_weight(o):
+    old_mode = o.mode
+    bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+    for v in [v for v in o.data.vertices if v.select]:
+        sum = 0
+        for group in v.groups:
+            sum += group.weight
+        coeff = 1/sum
+
+        for group in v.groups:
+            group.weight *= coeff
 
     bpy.ops.object.mode_set(mode=old_mode)
 
@@ -94,6 +108,11 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
                     mean_weights[group.group][0] += group.weight
                     mean_weights[group.group][1] += 1
 
+        # auto normalize
+        col.prop(bpy.context.scene, 'dskjal_wmv_auto_normalize', text='Auto Nomalize')
+        col.separator()
+        col.separator()
+        
         global to_vg_index
         global weights
         j = 0
@@ -128,19 +147,24 @@ def weight_array_set%s(self, value):
 
     global weights
     weights[%s] = value
+
+    if bpy.context.scene.dskjal_wmv_auto_normalize:
+        normalize_weight(bpy.context.active_object)
     return None
     ''' % (i, i, i, i, i))
 
 def register():
     for i in range(num_weight_array):
-        exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0, step=5, get=weight_array_get%s, set=weight_array_set%s)" % (i, i, i))
+        exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0, step=5, precision=3, get=weight_array_get%s, set=weight_array_set%s)" % (i, i, i))
 
+    bpy.types.Scene.dskjal_wmv_auto_normalize = bpy.props.BoolProperty(default=False)
     bpy.utils.register_class(DSKJAL_OT_ClearWeight)
     bpy.utils.register_class(DSKJAL_PT_WeightMultipleVertices_UI)
 
 def unregister():
     bpy.utils.unregister_class(DSKJAL_PT_WeightMultipleVertices_UI)
     bpy.utils.unregister_class(DSKJAL_OT_ClearWeight)
+    del bpy.types.Scene.dskjal_wmv_auto_normalize
     for i in range(num_weight_array):
         exec("del bpy.types.Scene.dskjal_weight_array%s" % i)
 

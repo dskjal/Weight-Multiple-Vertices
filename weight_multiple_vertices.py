@@ -109,7 +109,7 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
                     mean_weights[group.group][1] += 1
 
         # auto normalize
-        col.prop(bpy.context.scene, 'dskjal_wmv_auto_normalize', text='Auto Nomalize')
+        col.prop(bpy.context.scene, 'dskjal_wmv_auto_normalize', text='Auto Normalize')
         col.separator()
         col.separator()
         

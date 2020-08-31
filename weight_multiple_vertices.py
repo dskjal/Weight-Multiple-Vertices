@@ -21,7 +21,7 @@ import bmesh
 bl_info = {
     "name" : "Weight Multiple Vertices",
     "author" : "dskjal",
-    "version" : (2, 1),
+    "version" : (2, 2),
     "blender" : (2, 83, 5),
     "location" : "View3D > Toolshelf > Item > Weight Multiple Vertices",
     "description" : "This add-on sets the weight to multiple vertices.",
@@ -90,12 +90,18 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
         mesh = obj.data
 
         num_vertex_group = len(obj.vertex_groups)
+        if num_vertex_group == 0:
+            return
+        
         bone_flags = [False] * num_vertex_group
         mean_weights = [[0.0, 0] for i in range(num_vertex_group)]
 
         if obj.mode == 'EDIT':
             bm = bmesh.from_edit_mesh(mesh)
             deform_layer = bm.verts.layers.deform.active
+            if deform_layer == None:
+                return
+                
             for v in [v for v in bm.verts if v.select]:
                 for group, weight in v[deform_layer].items():
                     bone_flags[group] = True

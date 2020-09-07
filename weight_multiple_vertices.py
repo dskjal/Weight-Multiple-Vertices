@@ -147,8 +147,8 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
             # lazy button
             if bpy.context.scene.dskjal_wmv_show_weight_button:
                 row = col.row()
-                for k in range(20):
-                    if k % 5 == 0:
+                for k in range(1,21):
+                    if (k-1) % 5 == 0:
                         row = col.row()
                     ot = row.operator('dskjal.clearweight', text='{:.2f}'.format(k*0.05))
                     ot.vg_index = i

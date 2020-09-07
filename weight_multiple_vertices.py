@@ -21,7 +21,7 @@ import bmesh
 bl_info = {
     "name" : "Weight Multiple Vertices",
     "author" : "dskjal",
-    "version" : (2, 2),
+    "version" : (3, 0),
     "blender" : (2, 83, 5),
     "location" : "View3D > Toolshelf > Item > Weight Multiple Vertices",
     "description" : "This add-on sets the weight to multiple vertices.",
@@ -64,13 +64,15 @@ def normalize_weight(o):
 
     bpy.ops.object.mode_set(mode=old_mode)
 
-class DSKJAL_OT_ClearWeight(bpy.types.Operator):
+class DSKJAL_OT_SetWeightOrClear(bpy.types.Operator):
     bl_idname = 'dskjal.clearweight'
     bl_label = 'Set Weight'
     vg_index : bpy.props.IntProperty(default=0)
+    is_clear : bpy.props.BoolProperty(default=False)
+    weight : bpy.props.FloatProperty(default=0)
 
     def execute(self, context):
-        set_weight_or_clear(bpy.context.active_object, 0, self.vg_index, is_clear=True)
+        set_weight_or_clear(bpy.context.active_object, self.weight, self.vg_index, is_clear=self.is_clear)
         return {'FINISHED'}
 
 class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
@@ -116,6 +118,7 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
 
         # auto normalize
         col.prop(bpy.context.scene, 'dskjal_wmv_auto_normalize', text='Auto Normalize')
+        col.prop(bpy.context.scene, 'dskjal_wmv_show_weight_button', text='Show Weight Button')
         col.separator()
         col.separator()
         
@@ -127,6 +130,8 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
             # clear operator
             ot = row.operator('dskjal.clearweight', text='', icon='CANCEL')
             ot.vg_index = i
+            ot.is_clear = True
+            ot.weight = 0
             to_vg_index[j] = i
 
             # vertex group label
@@ -138,6 +143,19 @@ class DSKJAL_PT_WeightMultipleVertices_UI(bpy.types.Panel):
                 weights[j] = mw[0]/mw[1]
             row.prop(bpy.context.scene, 'dskjal_weight_array%s' % j, text='')
             j += 1
+
+            # lazy button
+            if bpy.context.scene.dskjal_wmv_show_weight_button:
+                row = col.row()
+                for k in range(20):
+                    if k % 5 == 0:
+                        row = col.row()
+                    ot = row.operator('dskjal.clearweight', text='{:.2f}'.format(k*0.05))
+                    ot.vg_index = i
+                    ot.is_clear = False
+                    ot.weight = k*0.05
+                col.separator()
+                col.separator()
 
             if j >= num_weight_array:
                 break
@@ -164,12 +182,14 @@ def register():
         exec("bpy.types.Scene.dskjal_weight_array%s = bpy.props.FloatProperty(default=0, min=0, max=1.0, step=5, precision=3, get=weight_array_get%s, set=weight_array_set%s)" % (i, i, i))
 
     bpy.types.Scene.dskjal_wmv_auto_normalize = bpy.props.BoolProperty(default=False)
-    bpy.utils.register_class(DSKJAL_OT_ClearWeight)
+    bpy.types.Scene.dskjal_wmv_show_weight_button = bpy.props.BoolProperty(default=False)
+    bpy.utils.register_class(DSKJAL_OT_SetWeightOrClear)
     bpy.utils.register_class(DSKJAL_PT_WeightMultipleVertices_UI)
 
 def unregister():
     bpy.utils.unregister_class(DSKJAL_PT_WeightMultipleVertices_UI)
-    bpy.utils.unregister_class(DSKJAL_OT_ClearWeight)
+    bpy.utils.unregister_class(DSKJAL_OT_SetWeightOrClear)
+    del bpy.types.Scene.dskjal_wmv_show_weight_button
     del bpy.types.Scene.dskjal_wmv_auto_normalize
     for i in range(num_weight_array):
         exec("del bpy.types.Scene.dskjal_weight_array%s" % i)
